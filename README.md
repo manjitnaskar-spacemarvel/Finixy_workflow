@@ -1,73 +1,106 @@
-# React + TypeScript + Vite
+# 🚀 Finixy Workflow Builder
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A powerful, intuitive workflow automation builder built with **React**, **TypeScript**, and **Vite**. This project allows users to design and visualize complex logic flows with ease.
 
-Currently, two official plugins are available:
+## ✨ Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+* **Drag-and-Drop Interface:** Build workflows visually.
+* **TypeScript Powered:** Full type safety for a robust developer experience.
+* **Fast HMR:** Powered by Vite for near-instant browser updates.
+* **Scalable Architecture:** Clean component structure ready for production.
 
-## React Compiler
+---
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## 🛠️ Getting Started
 
-## Expanding the ESLint configuration
+Follow these steps to get the project running on your local machine.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### Prerequisites
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+Make sure you have **Node.js** (v18 or higher) installed.
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### Installation
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+1. **Clone the repository:**
+```bash
+git clone https://github.com/manjitnaskar-spacemarvel/Finixy_workflow.git
+cd Finixy_workflow
+
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+2. **Install dependencies:**
+```bash
+npm install
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```
+
+
+
+### Development
+
+To start the development server with Hot Module Replacement (HMR):
+
+```bash
+npm run dev
+
+```
+
+The application will be available at `http://localhost:5173`.
+
+---
+
+## Project Structure
+
+```
+├── public
+├── src
+│   ├── assets
+│   ├── components
+│   │   ├── ChatPanel.tsx
+│   │   ├── ConfigPanel.tsx
+│   │   ├── CustomEdge.tsx
+│   │   ├── CustomNode.tsx
+│   │   ├── Header.tsx
+│   │   ├── NodePalette.tsx
+│   │   ├── Sidebar.tsx
+│   │   └── WorkflowCanvas.tsx
+│   ├── services
+│   │   └── api.ts
+│   ├── store
+│   │   └── WorkflowContext.tsx
+│   ├── types
+│   │   └── index.ts
+│   ├── utils
+│   │   ├── constants.ts
+│   │   ├── workflowMapper.ts
+│   │   └── workflowParser.ts
+│   ├── App.css
+│   ├── App.tsx
+│   ├── index.css
+│   └── main.tsx
+├── .gitignore
+├── Finixy_workflow_builder - Shortcut.lnk
+├── README.md
+├── eslint.config.js
+├── index.html
+├── package-lock.json
+├── package.json
+├── postcss.config.js
+├── tailwind.config.js
+├── tsconfig.app.json
+├── tsconfig.json
+├── tsconfig.node.json
+└── vite.config.ts
+```
+
+---
+
+## Deployment
+
+To create a production-ready build:
+
+```bash
+npm run build
+
 ```

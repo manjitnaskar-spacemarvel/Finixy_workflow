@@ -15,6 +15,17 @@ export default defineConfig({
       '@utils': path.resolve(__dirname, './src/utils'),
     },
   },
+  optimizeDeps: {
+    include: ['exceljs'],
+    esbuildOptions: {
+      target: 'esnext',
+    },
+  },
+  build: {
+    commonjsOptions: {
+      include: [/exceljs/, /node_modules/],
+    },
+  },
   server: {
     port: 3000,
     open: true,

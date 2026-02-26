@@ -65,12 +65,15 @@ Object.keys(REPORT_TEMPLATES).forEach(key => {
 export const mapBackendNodesToFrontend = (backendNodes: any[], workflowName: string, reportType: string) => {
   console.log("\n=== MAPPING NODES (Shared Utility) ===");
   console.log("Backend nodes:", backendNodes);
+  console.log("Workflow name:", workflowName);
+  console.log("Report type:", reportType);
   
   let template: any[] = [];
 
   // 1. Try match by reportType
   if (reportType && REPORT_TEMPLATES[reportType]) {
     template = REPORT_TEMPLATES[reportType];
+    console.log("✅ Found template by reportType:", reportType);
   } 
   // 2. Try match by workflowName
   else if (workflowName) {
@@ -78,16 +81,26 @@ export const mapBackendNodesToFrontend = (backendNodes: any[], workflowName: str
       k.toLowerCase() === workflowName.toLowerCase() ||
       workflowName.toUpperCase().includes(k)
     );
-    if (key) template = REPORT_TEMPLATES[key];
+    if (key) {
+      template = REPORT_TEMPLATES[key];
+      console.log("✅ Found template by workflowName:", key);
+    }
   }
 
   // If backendNodes is empty/null, use the template to generate nodes
   const nodesToProcess = (backendNodes && backendNodes.length > 0) ? backendNodes : template;
+  console.log("📦 Processing", nodesToProcess.length, "nodes");
 
   return nodesToProcess.map((node: any, index: number) => {
     // CRITICAL: Preserve backend node ID - DO NOT generate new IDs
     // Backend edges reference these exact IDs (step_1, step_2, etc)
     const nodeId = node.id || `step_${index + 1}`;
+    
+    // Check if backend sent position data
+    if (node.position) {
+      console.log(`⚠️ Node ${nodeId} has backend position:`, node.position);
+    }
+    
     console.log(`Mapping node ${index}: id=${nodeId}, type=${node.type || node.node_type}`);
     
     const rawType = node.node_type || node.type || ""; 
@@ -113,11 +126,19 @@ export const mapBackendNodesToFrontend = (backendNodes: any[], workflowName: str
         else if (nameCheck.includes('sort') || nameCheck.includes('group') || nameCheck.includes('duplicate')) frontendType = 'matcher';
     }
 
-    // Return structure for React Flow
+    // FORCE VERTICAL LAYOUT - Ignore backend position
+    const verticalPosition = { 
+      x: 400,  // Center horizontally
+      y: 100 + (index * 200)  // Stack vertically with 200px spacing
+    };
+
+    console.log(`📍 Node ${nodeId} position:`, verticalPosition);
+
+    // Return structure for React Flow - VERTICAL LAYOUT
     return {
       id: nodeId, // CRITICAL: Use backend ID, not generated ID
       type: "custom", // Forces CustomNode.tsx
-      position: node.position || { x: 250, y: 50 + (index * 180) }, 
+      position: verticalPosition,  // ALWAYS use vertical layout
       data: {
         ...node.data,
         label: displayName,     

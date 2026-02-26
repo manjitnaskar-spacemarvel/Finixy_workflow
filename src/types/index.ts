@@ -225,6 +225,7 @@ export interface WorkflowConfig {
   nodes: WorkflowNode[];
   edges: Edge[];
   lastModified: string;
+  reportId?: string | null;
   reportUrl?: string | null;
   reportFileName?: string;
 }

@@ -1,7 +1,15 @@
 import React from "react";
-import { 
-  X, Table, DollarSign, FileText, Calendar, 
-  Building, Users, Activity, Hash, FileCheck
+import {
+  X,
+  Table,
+  DollarSign,
+  FileText,
+  Calendar,
+  Building,
+  Users,
+  Activity,
+  Hash,
+  FileCheck,
 } from "lucide-react";
 
 interface DocumentPreviewModalProps {
@@ -9,53 +17,100 @@ interface DocumentPreviewModalProps {
   onClose: () => void;
 }
 
-export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({ 
-  previewData, 
-  onClose 
+export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
+  previewData,
+  onClose,
 }) => {
   // Add ESC key listener
   React.useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === "Escape") onClose();
     };
-    
-    document.addEventListener('keydown', handleEscape);
-    return () => document.removeEventListener('keydown', handleEscape);
+
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
   }, [onClose]);
 
   // --- Formatting Helpers ---
   const formatCurrency = (val: any) => {
     const num = parseFloat(val);
-    return isNaN(num) ? "-" : `$${num.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+    return isNaN(num)
+      ? "-"
+      : `₹${num.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
   };
 
-  const formatDate = (dateStr: string | null) => 
+  // For Line Items - shows original currency from document
+  const formatOriginalCurrency = (val: any, currency?: string) => {
+    const num = parseFloat(val);
+    if (isNaN(num)) return "-";
+
+    // Detect currency from the data or default to USD
+    const currencySymbol = currency === "INR" || currency === "₹" ? "₹" : "$";
+    const locale = currency === "INR" || currency === "₹" ? "en-IN" : "en-US";
+
+    return `${currencySymbol}${num.toLocaleString(locale, { minimumFractionDigits: 2 })}`;
+  };
+
+  const formatDate = (dateStr: string | null) =>
     dateStr ? new Date(dateStr).toLocaleDateString() : "-";
-  
-  const formatBytes = (bytes: number | null) => 
+
+  const formatBytes = (bytes: number | null) =>
     bytes ? `${(bytes / 1024).toFixed(2)} KB` : "-";
 
   // Status badge color logic
   const getStatusBadge = (status: string) => {
-    const statusLower = status?.toLowerCase() || 'pending';
-    const badges: Record<string, { bg: string; text: string; border: string }> = {
-      'paid': { bg: 'bg-emerald-500/20', text: 'text-emerald-400', border: 'border-emerald-500/30' },
-      'pending': { bg: 'bg-yellow-500/20', text: 'text-yellow-400', border: 'border-yellow-500/30' },
-      'overdue': { bg: 'bg-red-500/20', text: 'text-red-400', border: 'border-red-500/30' },
-      'cancelled': { bg: 'bg-gray-500/20', text: 'text-gray-400', border: 'border-gray-500/30' },
-      'draft': { bg: 'bg-blue-500/20', text: 'text-blue-400', border: 'border-blue-500/30' },
-    };
-    const badge = badges[statusLower] || badges['pending'];
+    const statusLower = status?.toLowerCase() || "pending";
+    const badges: Record<string, { bg: string; text: string; border: string }> =
+      {
+        paid: {
+          bg: "bg-emerald-500/20",
+          text: "text-emerald-400",
+          border: "border-emerald-500/30",
+        },
+        pending: {
+          bg: "bg-yellow-500/20",
+          text: "text-yellow-400",
+          border: "border-yellow-500/30",
+        },
+        overdue: {
+          bg: "bg-red-500/20",
+          text: "text-red-400",
+          border: "border-red-500/30",
+        },
+        cancelled: {
+          bg: "bg-gray-500/20",
+          text: "text-gray-400",
+          border: "border-gray-500/30",
+        },
+        draft: {
+          bg: "bg-blue-500/20",
+          text: "text-blue-400",
+          border: "border-blue-500/30",
+        },
+      };
+    const badge = badges[statusLower] || badges["pending"];
     return (
-      <span className={`px-3 py-1 text-xs font-bold uppercase tracking-wider rounded-full ${badge.bg} ${badge.text} border ${badge.border}`}>
-        {status || 'PENDING'}
+      <span
+        className={`px-3 py-1 text-xs font-bold uppercase tracking-wider rounded-full ${badge.bg} ${badge.text} border ${badge.border}`}
+      >
+        {status || "PENDING"}
       </span>
     );
   };
 
   // --- Professional Line Item Table Renderer ---
   const renderLineItems = (dataObj: any) => {
-    const items = dataObj?.extracted_fields?.line_items || [];
+    // Check if canonical_data exists and has extracted_fields
+    if (!dataObj || !dataObj.extracted_fields) {
+      return (
+        <div className="p-8 text-center text-gray-500 italic">
+          No itemized records detected.
+        </div>
+      );
+    }
+
+    const items = dataObj.extracted_fields.line_items || [];
+
     if (items.length > 0) {
       return (
         <div className="overflow-hidden border border-gray-700 rounded-xl bg-gray-800 shadow-lg">
@@ -86,10 +141,16 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                     {item.quantity || "1"}
                   </td>
                   <td className="px-4 py-3 text-sm text-right text-gray-300 font-mono">
-                    {formatCurrency(item.unit_price)}
+                    {formatOriginalCurrency(
+                      item.unit_price,
+                      item.currency || previewData.currency,
+                    )}
                   </td>
                   <td className="px-4 py-3 text-sm text-right text-gray-100 font-bold font-mono">
-                    {formatCurrency(item.amount)}
+                    {formatOriginalCurrency(
+                      item.amount,
+                      item.currency || previewData.currency,
+                    )}
                   </td>
                 </tr>
               ))}
@@ -106,18 +167,23 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
   };
 
   // CRITICAL: Don't render if no data
-  if (!previewData) return null;
+  if (!previewData) {
+    console.log("⚠️ DocumentPreviewModal: No preview data provided");
+    return null;
+  }
+
+  // Log the structure to help debug
+  console.log("📄 DocumentPreviewModal rendering with data:", previewData);
 
   return (
-    <div 
+    <div
       className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 md:p-8 animate-in fade-in duration-200"
       onClick={onClose}
     >
-      <div 
+      <div
         className="bg-gray-900 rounded-3xl shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 border border-gray-800"
         onClick={(e) => e.stopPropagation()}
       >
-        
         {/* Modal Header */}
         <div className="px-6 py-5 border-b border-gray-800 flex justify-between items-center bg-gray-900">
           <div className="flex items-center gap-4">
@@ -133,21 +199,21 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                   VERIFIED
                 </span>
                 <span className="text-xs text-gray-500 flex items-center gap-1 font-medium">
-                  <Calendar className="w-3 h-3"/> Upload Date: {formatDate(previewData.uploaded_at)}
+                  <Calendar className="w-3 h-3" /> Upload Date:{" "}
+                  {formatDate(previewData.uploaded_at)}
                 </span>
               </div>
             </div>
           </div>
-          <button 
-            onClick={onClose} 
+          <button
+            onClick={onClose}
             className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all"
           >
             <X className="w-6 h-6" />
           </button>
         </div>
-        
+
         <div className="p-8 overflow-y-auto flex-1 bg-gray-950 space-y-8">
-          
           {/* 1. Financial Overview Cards */}
           <div>
             <h4 className="text-xs font-black text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2">
@@ -199,7 +265,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
               <div className="bg-gray-900 rounded-2xl border border-gray-800 shadow-lg divide-y divide-gray-800 overflow-hidden">
                 <div className="p-4 flex justify-between items-center bg-gray-900 hover:bg-gray-800/50 transition-colors">
                   <span className="text-xs text-gray-500 font-bold flex items-center gap-2">
-                    <Building className="w-3.5 h-3.5"/> Vendor Name
+                    <Building className="w-3.5 h-3.5" /> Vendor Name
                   </span>
                   <span className="text-sm font-bold text-gray-200">
                     {previewData.vendor_name || "N/A"}
@@ -207,7 +273,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                 </div>
                 <div className="p-4 flex justify-between items-center bg-gray-900 hover:bg-gray-800/50 transition-colors">
                   <span className="text-xs text-gray-500 font-bold flex items-center gap-2">
-                    <Users className="w-3.5 h-3.5"/> Customer Name
+                    <Users className="w-3.5 h-3.5" /> Customer Name
                   </span>
                   <span className="text-sm font-bold text-gray-200">
                     {previewData.customer_name || "N/A"}
@@ -215,7 +281,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                 </div>
                 <div className="p-4 flex justify-between items-center bg-gray-900 hover:bg-gray-800/50 transition-colors">
                   <span className="text-xs text-gray-500 font-bold flex items-center gap-2">
-                    <Hash className="w-3.5 h-3.5"/> Document Number
+                    <Hash className="w-3.5 h-3.5" /> Document Number
                   </span>
                   <span className="text-sm font-mono font-bold text-blue-400">
                     {previewData.document_number || "N/A"}
@@ -223,11 +289,9 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                 </div>
                 <div className="p-4 flex justify-between items-center bg-gray-900 hover:bg-gray-800/50 transition-colors">
                   <span className="text-xs text-gray-500 font-bold flex items-center gap-2">
-                    <FileCheck className="w-3.5 h-3.5"/> Status
+                    <FileCheck className="w-3.5 h-3.5" /> Status
                   </span>
-                  <div>
-                    {getStatusBadge(previewData.status)}
-                  </div>
+                  <div>{getStatusBadge(previewData.status)}</div>
                 </div>
               </div>
             </div>
@@ -244,7 +308,8 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                       File Properties
                     </p>
                     <p className="text-sm font-bold text-gray-200 uppercase mt-1">
-                      {previewData.file_type?.replace('.', '') || 'PDF'} / {formatBytes(previewData.file_size)}
+                      {previewData.file_type?.replace(".", "") || "PDF"} /{" "}
+                      {formatBytes(previewData.file_size)}
                     </p>
                   </div>
                   <div className="text-right">
@@ -252,7 +317,9 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                       AI Confidence
                     </p>
                     <p className="text-sm font-bold text-emerald-400 mt-1">
-                      {previewData.confidence_score ? `${(previewData.confidence_score * 100).toFixed(0)}%` : "N/A"}
+                      {previewData.confidence_score
+                        ? `${(previewData.confidence_score * 100).toFixed(0)}%`
+                        : "N/A"}
                     </p>
                   </div>
                 </div>
@@ -275,7 +342,6 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
             </h4>
             {renderLineItems(previewData.canonical_data)}
           </div>
-
         </div>
       </div>
     </div>

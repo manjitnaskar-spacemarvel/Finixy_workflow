@@ -38,24 +38,49 @@ export const authService = {
 
 export const chatService = {
   // Sends a new natural language query to the AI
-  sendQuery: (query: string) => api.post('/chat/query', { query }),
+  sendQuery: (query: string, chat_id?: string) => 
+    api.post('/chat/query', { query, chat_id }),
 
-  // Fetches the list of all previous workflows for the sidebar
+  // Get list of all chat sessions for sidebar
+  getChatHistory: async (limit: number = 50, offset: number = 0) => {
+    return api.get(`/chats?limit=${limit}&offset=${offset}`);
+  },
+
+  // Get specific chat with all messages
+  getChatDetails: (chat_id: string) => {
+    return api.get(`/chats/${chat_id}`);
+  },
+
+  // Update chat metadata (rename, pin/unpin)
+  updateChat: (chat_id: string, data: { 
+    session_title?: string; 
+    pinned?: boolean;
+    session_status?: string;
+    summary?: string;
+  }) => {
+    return api.put(`/chats/${chat_id}`, data);
+  },
+
+  // Delete a chat (soft delete)
+  deleteChat: (chat_id: string) => {
+    return api.delete(`/chats/${chat_id}`);
+  },
+
+  // Add a message to existing chat
+  addMessage: (chat_id: string, role: string, content: string, metadata?: any) => {
+    return api.post(`/chats/${chat_id}/messages`, { role, content, metadata });
+  },
+
+  // DEPRECATED - Old workflow endpoints (kept for backward compatibility)
   getWorkflowHistory: async (limit: number = 50) => {
     return api.get(`/workflows?limit=${limit}`);
   },
-
-  // NEW: Updates an existing workflow (Rename or Pin)
   updateWorkflow: (id: string | number, data: { name?: string; is_pinned?: boolean }) => {
     return api.put(`/workflows/${id}`, data);
   },
-
-  // Add this inside chatService in api.ts
   getWorkflowDetails: (id: string) => {
     return api.get(`/workflows/${id}`);
   },
-
-  // Deletes a workflow from the database
   deleteWorkflow: (id: string | number) => {
     return api.delete(`/workflows/${id}`);
   }
@@ -70,9 +95,12 @@ export default api;
 
 export const documentService = {
   // Uploads a file (requires multipart/form-data)
-  upload: (file: File) => {
+  upload: (file: File, chat_id?: string) => {
     const formData = new FormData();
     formData.append('file', file);
+    if (chat_id) {
+      formData.append('chat_id', chat_id);
+    }
     return api.post('/documents/upload', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
@@ -88,14 +116,29 @@ export const documentService = {
   // Fetches the detailed parsed data for the preview table
   getDocument: (id: string) => {
     return api.get(`/documents/${id}`);
+  },
+
+  // Download original file
+  getFileUrl: (id: string) => {
+    return `${API_URL}/documents/${id}/download`;
   }
 };
 
-// src/services/api.ts - Add this new service method
-
+// Report Service - Fetch reports from backend
 export const reportService = {
+  // Get specific report by ID with full data
+  getReport: async (report_id: string) => {
+    return api.get(`/reports/${report_id}`);
+  },
+
+  // List all reports for current user
+  listReports: async (limit: number = 50, offset: number = 0) => {
+    return api.get(`/reports?limit=${limit}&offset=${offset}`);
+  },
+
+  // Legacy: Generate AP Register directly
   generateAPRegisterDirect: async () => {
-    const token = localStorage.getItem('auth_token');
+    const token = sessionStorage.getItem('access_token');
     return axios.post(
       'http://localhost:8000/api/v1/reports/ap-register/direct',
       {},

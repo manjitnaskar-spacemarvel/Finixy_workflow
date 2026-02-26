@@ -1,5 +1,4 @@
-
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import ReactFlow, {
   addEdge,
   Background,
@@ -10,14 +9,15 @@ import ReactFlow, {
   NodeTypes,
   EdgeTypes,
   ReactFlowInstance,
-} from 'reactflow';
-import 'reactflow/dist/style.css';
-import { CustomNode } from '@components/CustomNode';
-import { CustomEdge } from '@components/CustomEdge';
-import { CustomMiniMap } from '@components/CustomMiniMap';
-import { useWorkflow } from '@store/WorkflowContext';
-import { WorkflowNode, NodeType } from '@/types/index';
-import { Layers } from 'lucide-react';
+} from "reactflow";
+import "reactflow/dist/style.css";
+import { CustomNode } from "@components/CustomNode";
+import { CustomEdge } from "@components/CustomEdge";
+import { CustomMiniMap } from "@components/CustomMiniMap";
+import { useWorkflow } from "@store/WorkflowContext";
+import { WorkflowNode, NodeType } from "@/types/index";
+import { Layers, Play, Loader2 } from "lucide-react";
+import { chatService } from "../services/api";
 
 const nodeTypes: NodeTypes = {
   custom: CustomNode,
@@ -28,24 +28,43 @@ const edgeTypes: EdgeTypes = {
 };
 
 export const WorkflowCanvas: React.FC = () => {
-  const { config, updateConfig, setSelectedNode } = useWorkflow();
+  const { config, updateConfig, setSelectedNode, currentChatId } =
+    useWorkflow();
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [isExecuting, setIsExecuting] = useState(false);
+  const [notification, setNotification] = useState<{
+    show: boolean;
+    message: string;
+    type: "success" | "error";
+  }>({ show: false, message: "", type: "success" });
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
-  const [reactFlowInstance, setReactFlowInstance] = React.useState<ReactFlowInstance | null>(null);
-  
+  const [reactFlowInstance, setReactFlowInstance] =
+    React.useState<ReactFlowInstance | null>(null);
+
   const isInternalUpdate = useRef(false);
   const prevConfigRef = useRef(config);
 
+  // Show notification helper
+  const showNotification = useCallback(
+    (message: string, type: "success" | "error" = "success") => {
+      setNotification({ show: true, message, type });
+      setTimeout(() => {
+        setNotification({ show: false, message: "", type: "success" });
+      }, 4000);
+    },
+    [],
+  );
+
   const onNodesChangeHandler = useCallback(
     (changes: any[]) => {
-      const hasRemoval = changes.some(change => change.type === 'remove');
+      const hasRemoval = changes.some((change) => change.type === "remove");
       if (hasRemoval) {
         setSelectedNode(null);
       }
       onNodesChange(changes);
     },
-    [onNodesChange, setSelectedNode]
+    [onNodesChange, setSelectedNode],
   );
 
   const onPaneClick = useCallback(() => {
@@ -54,25 +73,31 @@ export const WorkflowCanvas: React.FC = () => {
 
   // Sync config to canvas - Force update when config changes
   useEffect(() => {
-    const configChanged = 
-      JSON.stringify(prevConfigRef.current.nodes) !== JSON.stringify(config.nodes) ||
-      JSON.stringify(prevConfigRef.current.edges) !== JSON.stringify(config.edges);
+    const configChanged =
+      JSON.stringify(prevConfigRef.current.nodes) !==
+        JSON.stringify(config.nodes) ||
+      JSON.stringify(prevConfigRef.current.edges) !==
+        JSON.stringify(config.edges);
 
     if (configChanged) {
       console.log("=== FORCE CANVAS UPDATE ===");
       console.log("New nodes:", config.nodes?.length);
       console.log("New edges:", config.edges?.length);
-      
+
       // Debug: Show actual node IDs
       if (config.nodes && config.nodes.length > 0) {
-        console.log("Node IDs:", config.nodes.map((n: any) => n.id));
+        console.log(
+          "Node IDs:",
+          config.nodes.map((n: any) => n.id),
+        );
       }
-      
+
       // Debug: Show edge connections
       if (config.edges && config.edges.length > 0) {
-        console.log("Edge connections:", config.edges.map((e: any) => 
-          `${e.id}: ${e.source} -> ${e.target}`
-        ));
+        console.log(
+          "Edge connections:",
+          config.edges.map((e: any) => `${e.id}: ${e.source} -> ${e.target}`),
+        );
       }
 
       // Force update nodes
@@ -84,12 +109,14 @@ export const WorkflowCanvas: React.FC = () => {
           id: edge.id || `edge-${idx}`,
           source: edge.source,
           target: edge.target,
-          type: 'custom', // CRITICAL: Must match edgeTypes
-          animated: true,
-          style: { 
-            stroke: '#b1b1b7', 
-            strokeWidth: 2 
-          }
+          type: "custom", // CRITICAL: Must match edgeTypes
+          animated: edge.animated !== false, // Preserve animated state
+          style: edge.style || {
+            stroke: "#b1b1b7",
+            strokeWidth: 2,
+          },
+          // Preserve any other edge properties
+          ...(edge.label && { label: edge.label }),
         };
         console.log("Formatted edge:", formatted);
         return formatted;
@@ -100,7 +127,7 @@ export const WorkflowCanvas: React.FC = () => {
 
       console.log("=== CANVAS UPDATED ===");
       console.log("Canvas now has:", formattedEdges.length, "edges");
-      
+
       // VALIDATION: Check if edges can connect to nodes
       if (config.nodes && config.edges && config.edges.length > 0) {
         const nodeIds = new Set(config.nodes.map((n: any) => n.id));
@@ -108,8 +135,11 @@ export const WorkflowCanvas: React.FC = () => {
         config.edges.forEach((edge: any) => {
           const sourceExists = nodeIds.has(edge.source);
           const targetExists = nodeIds.has(edge.target);
-          const status = sourceExists && targetExists ? "✅ VALID" : "❌ INVALID";
-          console.log(`${status} Edge: ${edge.source} -> ${edge.target} (source: ${sourceExists}, target: ${targetExists})`);
+          const status =
+            sourceExists && targetExists ? "✅ VALID" : "❌ INVALID";
+          console.log(
+            `${status} Edge: ${edge.source} -> ${edge.target} (source: ${sourceExists}, target: ${targetExists})`,
+          );
         });
       }
     }
@@ -120,20 +150,20 @@ export const WorkflowCanvas: React.FC = () => {
     const handleDeleteEdge = (event: Event) => {
       const customEvent = event as CustomEvent;
       const { edgeId } = customEvent.detail;
-      
+
       console.log("🗑️ Deleting edge:", edgeId);
-      
+
       // Store the updated edges in a variable we can use
       let updatedEdges: any[] = [];
-      
+
       // Update edges state
       setEdges((currentEdges) => {
-        updatedEdges = currentEdges.filter(edge => edge.id !== edgeId);
+        updatedEdges = currentEdges.filter((edge) => edge.id !== edgeId);
         console.log("Edges after deletion:", updatedEdges.length);
         console.log("Updated edges:", updatedEdges);
         return updatedEdges;
       });
-      
+
       // Update config after state update with the captured edges
       setTimeout(() => {
         console.log("Updating config with edges:", updatedEdges.length);
@@ -145,24 +175,27 @@ export const WorkflowCanvas: React.FC = () => {
       }, 50);
     };
 
-    window.addEventListener('deleteEdge', handleDeleteEdge);
+    window.addEventListener("deleteEdge", handleDeleteEdge);
     return () => {
-      window.removeEventListener('deleteEdge', handleDeleteEdge);
+      window.removeEventListener("deleteEdge", handleDeleteEdge);
     };
   }, [setEdges, updateConfig, config]);
 
   // Sync canvas changes back to config (debounced)
   useEffect(() => {
     if (isInternalUpdate.current) return;
-    
-    const workflowNodes: WorkflowNode[] = nodes.map(node => ({
+
+    const workflowNodes: WorkflowNode[] = nodes.map((node) => ({
       id: node.id,
-      type: node.type || 'custom',
+      type: node.type || "custom",
       position: node.position,
-      data: node.data
+      data: node.data,
     }));
-    
-    if (nodes.length > 0 && JSON.stringify(workflowNodes) !== JSON.stringify(config.nodes)) {
+
+    if (
+      nodes.length > 0 &&
+      JSON.stringify(workflowNodes) !== JSON.stringify(config.nodes)
+    ) {
       const timeoutId = setTimeout(() => {
         updateConfig({
           ...config,
@@ -176,17 +209,45 @@ export const WorkflowCanvas: React.FC = () => {
 
   useEffect(() => {
     if (isInternalUpdate.current) return;
-    
-    // Sync edges to config when they change
-    const edgesStr = JSON.stringify(edges.map(e => ({ id: e.id, source: e.source, target: e.target })));
-    const configEdgesStr = JSON.stringify((config.edges || []).map(e => ({ id: e.id, source: e.source, target: e.target })));
-    
-    if (edgesStr !== configEdgesStr) {
+
+    // Sync edges to config when they change - preserve all edge properties
+    const edgesStr = JSON.stringify(
+      edges.map((e) => ({
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        type: e.type,
+        animated: e.animated,
+        style: e.style,
+        label: e.label,
+      })),
+    );
+    const configEdgesStr = JSON.stringify(
+      (config.edges || []).map((e) => ({
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        type: e.type,
+        animated: e.animated,
+        style: e.style,
+        label: e.label,
+      })),
+    );
+
+    if (edgesStr !== configEdgesStr && edges.length > 0) {
       const timeoutId = setTimeout(() => {
-        console.log("Syncing edges to config:", edges.length);
+        console.log("💾 Syncing edges to config:", edges.length);
         updateConfig({
           ...config,
-          edges: edges,
+          edges: edges.map((e) => ({
+            id: e.id,
+            source: e.source,
+            target: e.target,
+            type: e.type || "custom",
+            animated: e.animated !== false,
+            style: e.style || { stroke: "#b1b1b7", strokeWidth: 2 },
+            ...(e.label && { label: e.label }),
+          })),
           lastModified: new Date().toISOString(),
         });
       }, 100);
@@ -196,23 +257,25 @@ export const WorkflowCanvas: React.FC = () => {
 
   const onConnect = useCallback(
     (params: Connection) => {
-      const sourceNode = nodes.find(n => n.id === params.source);
-      const isConditionNode = sourceNode?.data?.nodeType === 'condition';
-      
+      const sourceNode = nodes.find((n) => n.id === params.source);
+      const isConditionNode = sourceNode?.data?.nodeType === "condition";
+
       const newEdge = {
         ...params,
-        type: 'custom', // CRITICAL: Must match edgeTypes
+        type: "custom", // CRITICAL: Must match edgeTypes
         animated: true,
-        label: isConditionNode 
-          ? params.sourceHandle === 'if' ? '✓ IF' : '✗ ELSE'
+        label: isConditionNode
+          ? params.sourceHandle === "if"
+            ? "✓ IF"
+            : "✗ ELSE"
           : undefined,
         style: isConditionNode
-          ? params.sourceHandle === 'if'
-            ? { stroke: '#0916cc', strokeWidth: 2 }
-            : { stroke: '#ef4444', strokeWidth: 2 }
-          : { stroke: '#b1b1b7', strokeWidth: 2 },
+          ? params.sourceHandle === "if"
+            ? { stroke: "#0916cc", strokeWidth: 2 }
+            : { stroke: "#ef4444", strokeWidth: 2 }
+          : { stroke: "#b1b1b7", strokeWidth: 2 },
       };
-      
+
       isInternalUpdate.current = true;
       setEdges((eds) => {
         const updated = addEdge(newEdge, eds);
@@ -222,27 +285,30 @@ export const WorkflowCanvas: React.FC = () => {
         return updated;
       });
     },
-    [setEdges, nodes]
+    [setEdges, nodes],
   );
 
   const onEdgesDelete = useCallback(
     (edgesToDelete: any[]) => {
       console.log("🗑️ Deleting edges via keyboard:", edgesToDelete.length);
-      
+
       // Store updated edges
       let updatedEdges: any[] = [];
-      
+
       setEdges((currentEdges) => {
-        const idsToDelete = new Set(edgesToDelete.map(e => e.id));
-        updatedEdges = currentEdges.filter(edge => !idsToDelete.has(edge.id));
-        
+        const idsToDelete = new Set(edgesToDelete.map((e) => e.id));
+        updatedEdges = currentEdges.filter((edge) => !idsToDelete.has(edge.id));
+
         console.log("Edges after keyboard deletion:", updatedEdges.length);
         return updatedEdges;
       });
-      
+
       // Update config with captured edges
       setTimeout(() => {
-        console.log("Updating config after keyboard delete:", updatedEdges.length);
+        console.log(
+          "Updating config after keyboard delete:",
+          updatedEdges.length,
+        );
         updateConfig({
           ...config,
           edges: updatedEdges,
@@ -250,21 +316,24 @@ export const WorkflowCanvas: React.FC = () => {
         });
       }, 50);
     },
-    [setEdges, updateConfig, config]
+    [setEdges, updateConfig, config],
   );
 
   const onDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault();
-    event.dataTransfer.dropEffect = 'move';
+    event.dataTransfer.dropEffect = "move";
   }, []);
 
   const onDrop = useCallback(
     (event: React.DragEvent) => {
       event.preventDefault();
-      const data = event.dataTransfer.getData('application/reactflow');
+      const data = event.dataTransfer.getData("application/reactflow");
       if (!data || !reactFlowInstance) return;
 
-      const { nodeType, label } = JSON.parse(data) as { nodeType: NodeType; label: string };
+      const { nodeType, label } = JSON.parse(data) as {
+        nodeType: NodeType;
+        label: string;
+      };
       const position = reactFlowInstance.screenToFlowPosition({
         x: event.clientX,
         y: event.clientY,
@@ -272,7 +341,7 @@ export const WorkflowCanvas: React.FC = () => {
 
       const newNode: WorkflowNode = {
         id: `node-${Date.now()}`,
-        type: 'custom',
+        type: "custom",
         position,
         data: {
           label,
@@ -289,18 +358,99 @@ export const WorkflowCanvas: React.FC = () => {
         return [...nds, newNode];
       });
     },
-    [reactFlowInstance, setNodes]
+    [reactFlowInstance, setNodes],
   );
 
+  // ============================================================================
+  // RUN WORKFLOW HANDLER
+  // ============================================================================
+  // RUN WORKFLOW HANDLER
+  // ============================================================================
+  const handleRunWorkflow = useCallback(async () => {
+    if (!config.name || nodes.length === 0) {
+      showNotification("Please create a workflow first", "error");
+      return;
+    }
+
+    setIsExecuting(true);
+
+    try {
+      console.log("🚀 Running workflow:", config.name);
+      console.log("📋 Chat ID:", currentChatId);
+
+      // Re-execute the workflow by sending the original query
+      const query = config.name || "Execute workflow";
+
+      const response = await chatService.sendQuery(
+        query,
+        currentChatId || undefined,
+      );
+
+      console.log("✅ Workflow executed:", response.data);
+
+      // Update workflow with new execution results
+      if (response.data.workflow) {
+        const workflow = response.data.workflow;
+
+        // Update node statuses to completed
+        setNodes((currentNodes) =>
+          currentNodes.map((node) => ({
+            ...node,
+            data: {
+              ...node.data,
+              status: workflow.status === "completed" ? "completed" : "failed",
+            },
+          })),
+        );
+
+        showNotification("Workflow executed successfully!", "success");
+      }
+    } catch (error: any) {
+      console.error("❌ Workflow execution failed:", error);
+      showNotification(
+        `Workflow execution failed: ${error.response?.data?.detail || error.message}`,
+        "error",
+      );
+    } finally {
+      setIsExecuting(false);
+    }
+  }, [config, nodes, currentChatId, setNodes, showNotification]);
+
   return (
-    <div className="h-full bg-gradient-to-br from-gray-900 via-black to-gray-900 relative" ref={reactFlowWrapper}>
-      {/* Node Count Overlay - Top Right */}
+    <div
+      className="h-full bg-gradient-to-br from-gray-900 via-black to-gray-900 relative"
+      ref={reactFlowWrapper}
+    >
+      {/* Node Count & Run Button - Top Right */}
       {nodes.length > 0 && (
-        <div className="absolute top-4 right-4 z-10 bg-gradient-to-br from-gray-800 to-gray-900 border border-gray-700 rounded-xl px-4 py-2 shadow-xl backdrop-blur-md flex items-center gap-2">
-          <Layers className="w-4 h-4 text-blue-400" />
-          <span className="text-sm font-medium text-gray-100">
-            {nodes.length} {nodes.length === 1 ? 'Node' : 'Nodes'}
-          </span>
+        <div className="absolute top-4 right-4 z-10 flex items-center gap-3">
+          {/* Node Count */}
+          <div className="bg-gradient-to-br from-gray-800 to-gray-900 border border-gray-700 rounded-xl px-4 py-2 shadow-xl backdrop-blur-md flex items-center gap-2">
+            <Layers className="w-4 h-4 text-blue-400" />
+            <span className="text-sm font-medium text-gray-100">
+              {nodes.length} {nodes.length === 1 ? "Node" : "Nodes"}
+            </span>
+          </div>
+
+          {/* Run Button */}
+          <button
+            onClick={handleRunWorkflow}
+            disabled={isExecuting}
+            className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 disabled:from-gray-600 disabled:to-gray-700 text-white px-4 py-2 rounded-xl shadow-xl backdrop-blur-md flex items-center gap-2 transition-all hover:scale-105 disabled:hover:scale-100 disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
+            title="Execute workflow"
+          >
+            {isExecuting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Running...</span>
+              </>
+            ) : (
+              <>
+                <Play className="w-4 h-4" />
+                <span>Run</span>
+              </>
+            )}
+          </button>
         </div>
       )}
 
@@ -321,9 +471,9 @@ export const WorkflowCanvas: React.FC = () => {
         className="bg-transparent"
         deleteKeyCode="Delete"
         defaultEdgeOptions={{
-          type: 'custom',
+          type: "custom",
           animated: true,
-          style: { stroke: '#b1b1b7', strokeWidth: 2 }
+          style: { stroke: "#b1b1b7", strokeWidth: 2 },
         }}
         edgesUpdatable={true}
         edgesFocusable={true}
@@ -331,23 +481,75 @@ export const WorkflowCanvas: React.FC = () => {
         selectNodesOnDrag={false}
       >
         {/* Dark Grid Background - More Visible */}
-        <Background 
-          color="#6b7280" 
-          gap={20} 
+        <Background
+          color="#6b7280"
+          gap={20}
           size={2}
-          style={{ backgroundColor: 'transparent' }}
+          style={{ backgroundColor: "transparent" }}
         />
-        
+
         {/* Modern Dark Controls - Left Side */}
-        <Controls 
+        <Controls
           className="!bg-gradient-to-br !from-gray-800 !to-gray-900 !border !border-gray-700 !rounded-xl !shadow-xl"
           position="top-left"
         />
-        
+
         {/* Custom Mini Map - MUST be inside ReactFlow */}
         <CustomMiniMap />
       </ReactFlow>
-      
+
+      {/* Notification Toast - Positioned below Run button */}
+      {notification.show && (
+        <div className="fixed top-36 right-4 z-[100] animate-slide-in-right">
+          <div
+            className={`flex items-center gap-3 px-5 py-3.5 rounded-lg shadow-2xl backdrop-blur-sm min-w-[280px] ${
+              notification.type === "success"
+                ? "bg-green-500/95 border border-green-400/50"
+                : "bg-red-500/95 border border-red-400/50"
+            }`}
+          >
+            <div className="flex-shrink-0">
+              {notification.type === "success" ? (
+                <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center">
+                  <svg
+                    className="w-3.5 h-3.5 text-white"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    strokeWidth={3}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                </div>
+              ) : (
+                <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center">
+                  <svg
+                    className="w-3.5 h-3.5 text-white"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    strokeWidth={3}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </div>
+              )}
+            </div>
+            <span className="text-white font-medium text-sm flex-1">
+              {notification.message}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Custom Styles for Dark Theme */}
       <style>{`
         /* React Flow Dark Theme Overrides */
@@ -433,6 +635,22 @@ export const WorkflowCanvas: React.FC = () => {
         
         .react-flow__handle:hover {
           background: #60a5fa;
+        }
+
+        /* Notification Animation */
+        @keyframes slide-in-right {
+          0% {
+            opacity: 0;
+            transform: translateX(100px);
+          }
+          100% {
+            opacity: 1;
+            transform: translateX(0);
+          }
+        }
+
+        .animate-slide-in-right {
+          animation: slide-in-right 0.4s cubic-bezier(0.16, 1, 0.3, 1);
         }
       `}</style>
     </div>

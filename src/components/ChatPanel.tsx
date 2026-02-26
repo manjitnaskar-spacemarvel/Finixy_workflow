@@ -427,25 +427,25 @@
 //             transform: translateY(0);
 //           }
 //         }
-        
+
 //         .animate-slide-in-up {
 //           animation: slide-in-up 0.5s ease-out;
 //         }
-        
+
 //         .custom-scrollbar::-webkit-scrollbar {
 //           width: 8px;
 //         }
-        
+
 //         .custom-scrollbar::-webkit-scrollbar-track {
 //           background: rgba(0, 0, 0, 0.3);
 //           border-radius: 4px;
 //         }
-        
+
 //         .custom-scrollbar::-webkit-scrollbar-thumb {
 //           background: linear-gradient(to bottom, #3b82f6, #2563eb);
 //           border-radius: 4px;
 //         }
-        
+
 //         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
 //           background: linear-gradient(to bottom, #60a5fa, #3b82f6);
 //         }
@@ -457,7 +457,14 @@
 import React, { useState, useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Send, Loader2, Paperclip, Eye, FileText } from "lucide-react";
+import {
+  Send,
+  Loader2,
+  Paperclip,
+  Eye,
+  FileText,
+  Download,
+} from "lucide-react";
 import { ChatMessage } from "@/types/index";
 import { useWorkflow } from "../store/WorkflowContext";
 import { INITIAL_CHAT_MESSAGE } from "../utils/constants";
@@ -468,6 +475,7 @@ import {
 } from "../utils/workflowMapper";
 import { DocumentPreviewModal } from "./DocumentPreviewModal";
 import { OriginalFilePreviewModal } from "./OriginalFilePreviewModal";
+import { generateExcelFromDocument } from "../utils/excelGenerator";
 
 interface ExtendedChatMessage extends ChatMessage {
   documentId?: string;
@@ -486,7 +494,16 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   isExpanded,
   onSwitchToReport,
 }) => {
-  const { config, updateConfig, sessionId, chatHistory } = useWorkflow();
+  const {
+    config,
+    updateConfig,
+    sessionId,
+    chatHistory,
+    setChatHistory,
+    currentChatId,
+    setCurrentChatId,
+    refreshSidebar,
+  } = useWorkflow();
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -546,30 +563,231 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
   useEffect(() => {
     if (chatHistory && chatHistory.length > 0) {
-      setMessages(chatHistory);
+      console.log("🔍 RAW CHAT HISTORY:", JSON.stringify(chatHistory, null, 2));
+
+      // Transform messages to include document metadata from message.metadata
+      const transformedMessages = chatHistory.map((msg: any, index: number) => {
+        const transformed: ExtendedChatMessage = {
+          role: msg.role,
+          content: msg.content,
+        };
+
+        // If message has metadata with document info, add it to the message
+        if (msg.metadata) {
+          console.log(`📦 Message ${index} metadata:`, msg.metadata);
+
+          // Document ID - check multiple possible field names
+          if (msg.metadata.document_id) {
+            transformed.documentId = msg.metadata.document_id;
+          } else if (msg.metadata.documentId) {
+            transformed.documentId = msg.metadata.documentId;
+          }
+
+          // File URL - check multiple possible field names
+          if (msg.metadata.file_url) {
+            transformed.fileUrl = msg.metadata.file_url;
+            console.log(
+              `✅ Found file_url for message ${index}:`,
+              msg.metadata.file_url,
+            );
+          } else if (msg.metadata.fileUrl) {
+            transformed.fileUrl = msg.metadata.fileUrl;
+            console.log(
+              `✅ Found fileUrl for message ${index}:`,
+              msg.metadata.fileUrl,
+            );
+          } else {
+            console.warn(
+              `⚠️ No file_url found for message ${index} with documentId:`,
+              transformed.documentId,
+            );
+          }
+
+          // File Type - check multiple possible field names
+          if (msg.metadata.file_type) {
+            transformed.fileType = msg.metadata.file_type;
+          } else if (msg.metadata.fileType) {
+            transformed.fileType = msg.metadata.fileType;
+          }
+
+          // Report URL - check multiple possible field names
+          if (msg.metadata.report_url) {
+            transformed.reportUrl = msg.metadata.report_url;
+          } else if (msg.metadata.reportUrl) {
+            transformed.reportUrl = msg.metadata.reportUrl;
+          }
+
+          // Report File Name - check multiple possible field names
+          if (msg.metadata.report_file_name) {
+            transformed.reportFileName = msg.metadata.report_file_name;
+          } else if (msg.metadata.reportFileName) {
+            transformed.reportFileName = msg.metadata.reportFileName;
+          }
+
+          console.log(`✅ Transformed message ${index}:`, transformed);
+        }
+
+        return transformed;
+      });
+
+      console.log("📝 FINAL transformed messages:", transformedMessages);
+      setMessages(transformedMessages);
     }
   }, [chatHistory]);
 
   const handleViewParsedData = async (documentId: string) => {
     setLoadingPreview(true);
     try {
+      console.log("📄 Fetching parsed data for document:", documentId);
       const response = await documentService.getDocument(documentId);
-      console.log("API Response:", response.data);
-      if (response.data.status === "success") {
-        console.log("Parsed Preview Data:", response.data.document);
+      console.log("📦 API Response:", response.data);
+
+      if (response.data.status === "success" && response.data.document) {
+        console.log("✅ Parsed Preview Data:", response.data.document);
         setParsedPreviewData(response.data.document);
+      } else {
+        console.error("❌ Invalid response format:", response.data);
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content:
+              "⚠️ Unable to load parsed data. The document may still be processing.",
+          },
+        ]);
       }
-    } catch (e) {
-      console.error("Error loading document:", e);
-      alert("Error loading parsed data.");
+    } catch (e: any) {
+      console.error("❌ Error loading document:", e);
+      const errorMsg = e.response?.data?.detail || e.message || "Unknown error";
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: `⚠️ Error loading parsed data: ${errorMsg}`,
+        },
+      ]);
     } finally {
       setLoadingPreview(false);
     }
   };
 
-  const handleViewOriginalFile = (fileUrl: string, fileType: string) => {
-    console.log("Opening original file:", { fileUrl, fileType });
-    setOriginalFileData({ url: fileUrl, type: fileType });
+  const handleDownloadExcel = async (documentId: string) => {
+    setLoadingPreview(true);
+    try {
+      console.log("📥 Downloading Excel for document:", documentId);
+      const response = await documentService.getDocument(documentId);
+
+      if (response.data.status === "success" && response.data.document) {
+        await generateExcelFromDocument(response.data.document);
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: "✅ Excel file downloaded successfully!",
+          },
+        ]);
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content:
+              "⚠️ Unable to generate Excel. Document data not available.",
+          },
+        ]);
+      }
+    } catch (e: any) {
+      console.error("❌ Error generating Excel:", e);
+      const errorMsg = e.response?.data?.detail || e.message || "Unknown error";
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: `⚠️ Error generating Excel: ${errorMsg}`,
+        },
+      ]);
+    } finally {
+      setLoadingPreview(false);
+    }
+  };
+
+  const handleViewOriginalFile = async (
+    fileUrl: string,
+    fileType: string,
+    documentId?: string,
+  ) => {
+    console.log("Opening original file:", { fileUrl, fileType, documentId });
+
+    // If fileUrl is missing but we have documentId, fetch it from the API
+    if ((!fileUrl || fileUrl === "") && documentId) {
+      console.log("📥 Fetching file URL from document API for:", documentId);
+      setLoadingPreview(true);
+      try {
+        const response = await documentService.getDocument(documentId);
+        console.log("📦 Full document response:", response.data);
+
+        if (response.data.status === "success" && response.data.document) {
+          const doc = response.data.document;
+          console.log("📄 Document object:", doc);
+
+          // Check multiple possible field names for file URL
+          const fetchedFileUrl =
+            doc.file_url ||
+            doc.fileUrl ||
+            doc.s3_url ||
+            doc.s3Url ||
+            doc.url ||
+            doc.original_file_url ||
+            doc.originalFileUrl;
+
+          const fetchedFileType =
+            doc.file_type ||
+            doc.fileType ||
+            doc.mime_type ||
+            doc.mimeType ||
+            fileType ||
+            "application/pdf";
+
+          if (fetchedFileUrl) {
+            console.log("✅ Fetched file URL:", fetchedFileUrl);
+            console.log("✅ File type:", fetchedFileType);
+            setOriginalFileData({ url: fetchedFileUrl, type: fetchedFileType });
+          } else {
+            // If no URL found in document, use the download endpoint
+            const downloadUrl = documentService.getFileUrl(documentId);
+            console.log(
+              "⚠️ No file URL in document response, using download endpoint:",
+              downloadUrl,
+            );
+            setOriginalFileData({ url: downloadUrl, type: fetchedFileType });
+          }
+        } else {
+          console.error("❌ Invalid document response:", response.data);
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: "assistant",
+              content: "⚠️ File URL not available for this document.",
+            },
+          ]);
+        }
+      } catch (e: any) {
+        console.error("❌ Error fetching file URL:", e);
+        const errorMsg =
+          e.response?.data?.detail || e.message || "Unknown error";
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: `⚠️ Error loading file: ${errorMsg}`,
+          },
+        ]);
+      } finally {
+        setLoadingPreview(false);
+      }
+    } else {
+      setOriginalFileData({ url: fileUrl, type: fileType });
+    }
   };
 
   const handleFileUpload = async (
@@ -578,28 +796,93 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     const file = event.target.files?.[0];
     if (!file) return;
     setUploading(true);
-    setMessages((prev) => [
-      ...prev,
-      { role: "user", content: `📎 Uploading: ${file.name}` },
-    ]);
+
+    const uploadMessage = {
+      role: "user" as const,
+      content: `📎 Uploading: ${file.name}`,
+    };
+    setMessages((prev) => [...prev, uploadMessage]);
 
     try {
-      const response = await documentService.upload(file);
+      // Pass current chat_id to upload if available
+      const response = await documentService.upload(
+        file,
+        currentChatId || undefined,
+      );
       console.log("Upload response:", response.data);
-      if (response.data.status === "success") {
-        const { document_id, extracted_data, file_url } = response.data;
-        const vendor = extracted_data?.vendor_name || "Detected Vendor";
 
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: "assistant",
-            content: `✅ **Successfully Processed: ${file.name}**\n\n**Vendor:** ${vendor}\n\nItemized financial records are now ready for review.`,
-            documentId: document_id,
-            fileUrl: file_url || URL.createObjectURL(file),
-            fileType: file.type,
-          },
-        ]);
+      if (response.data.status === "success") {
+        const {
+          document_id,
+          extracted_data,
+          file_url,
+          category,
+          party,
+          chat_id,
+        } = response.data;
+        const vendor =
+          extracted_data?.vendor_name ||
+          party?.vendor_name ||
+          "Detected Vendor";
+
+        const successMessage = {
+          role: "assistant" as const,
+          content: `✅ **Successfully Processed: ${file.name}**\n\n**Vendor:** ${vendor}\n**Category:** ${category || "Unknown"}\n\nItemized financial records are now ready for review.`,
+          documentId: document_id,
+          fileUrl: file_url || URL.createObjectURL(file),
+          fileType: file.type,
+        };
+
+        setMessages((prev) => [...prev, successMessage]);
+
+        // Update chat_id if returned from backend
+        if (chat_id && !currentChatId) {
+          console.log("💬 Received chat_id from file upload:", chat_id);
+          setCurrentChatId(chat_id);
+
+          // Trigger sidebar refresh to show the new chat
+          setTimeout(() => {
+            console.log("🔄 Triggering sidebar refresh after file upload");
+            refreshSidebar();
+          }, 500);
+        }
+
+        // Save messages to backend chat if chat_id exists
+        const activeChatId = chat_id || currentChatId;
+        if (activeChatId) {
+          try {
+            console.log("💾 Saving upload messages to chat:", activeChatId);
+
+            // Save user upload message
+            await chatService.addMessage(
+              activeChatId,
+              "user",
+              uploadMessage.content,
+            );
+
+            // Save assistant success message with metadata
+            await chatService.addMessage(
+              activeChatId,
+              "assistant",
+              successMessage.content,
+              {
+                document_id,
+                file_url,
+                file_type: file.type,
+                vendor,
+                category,
+              },
+            );
+
+            console.log("✅ Upload messages saved to chat history");
+          } catch (saveError) {
+            console.error("❌ Error saving messages to chat:", saveError);
+          }
+        } else {
+          console.log(
+            "⚠️ No chat_id available, messages not persisted to backend",
+          );
+        }
       }
     } catch (error) {
       console.error("Upload error:", error);
@@ -620,20 +903,44 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     setMessages((prev) => [...prev, { role: "user", content: query }]);
     setLoading(true);
 
+    console.log("📤 Sending query with chat_id:", currentChatId);
+
     try {
-      const response = await chatService.sendQuery(query);
+      const response = await chatService.sendQuery(
+        query,
+        currentChatId || undefined,
+      );
       console.log("=== WORKFLOW RESPONSE ===");
       console.log("Full response:", response.data);
 
-      const { workflow, report } = response.data;
+      const { workflow, report, chat_id } = response.data;
 
-      // Extract report URL
+      // Update chat_id if returned from backend
+      if (chat_id && !currentChatId) {
+        console.log("💬 Received new chat_id from backend:", chat_id);
+        setCurrentChatId(chat_id);
+
+        // Trigger sidebar refresh to show the new chat
+        setTimeout(() => {
+          console.log("🔄 Triggering sidebar refresh after query");
+          refreshSidebar();
+        }, 500);
+      }
+
+      // Extract report ID and URL
+      let reportId = null;
       let reportDownloadUrl = null;
       let reportFilePath = null;
 
       if (report) {
+        reportId = report.report_id;
         reportDownloadUrl = report.download_url || report.downloadUrl;
         reportFilePath = report.file_path || report.filePath;
+
+        console.log("📊 Report found:");
+        console.log("  - Report ID:", reportId);
+        console.log("  - Download URL:", reportDownloadUrl);
+        console.log("  - File Path:", reportFilePath);
       }
 
       if (!reportDownloadUrl && workflow?.output_file_path) {
@@ -646,30 +953,61 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         ? reportFilePath.split("/").pop()
         : "report.xlsx";
 
-      if (workflow?.nodes) {
-        const safeNodes = mapBackendNodesToFrontend(
-          workflow.nodes,
-          workflow.name || "",
-          workflow.report_type || "",
-        );
+      // Check if workflow exists and has nodes
+      console.log("🔍 Checking workflow structure:");
+      console.log("  - workflow exists:", !!workflow);
+      console.log("  - workflow.nodes:", workflow?.nodes);
+      console.log(
+        "  - workflow.workflow_definition:",
+        workflow?.workflow_definition,
+      );
 
-        const mappedEdges = mapBackendEdgesToFrontend(
-          workflow.edges || [],
-          safeNodes,
-        );
+      if (workflow) {
+        // Try to get nodes from multiple possible locations
+        let rawNodes =
+          workflow.nodes || workflow.workflow_definition?.nodes || [];
+        let rawEdges =
+          workflow.edges || workflow.workflow_definition?.edges || [];
 
-        const safeEdges = mappedEdges.filter(
-          (edge): edge is NonNullable<typeof edge> => edge !== null,
-        );
+        console.log("📦 Raw nodes:", rawNodes);
+        console.log("📦 Raw edges:", rawEdges);
 
-        updateConfig({
-          ...config,
-          name: workflow.name || config.name,
-          nodes: safeNodes,
-          edges: safeEdges,
-          reportUrl: reportDownloadUrl,
-          reportFileName: reportFileName,
-        });
+        if (rawNodes && rawNodes.length > 0) {
+          const safeNodes = mapBackendNodesToFrontend(
+            rawNodes,
+            workflow.name || "",
+            workflow.report_type || "",
+          );
+
+          const mappedEdges = mapBackendEdgesToFrontend(
+            rawEdges || [],
+            safeNodes,
+          );
+
+          const safeEdges = mappedEdges.filter(
+            (edge): edge is NonNullable<typeof edge> => edge !== null,
+          );
+
+          console.log("✅ Mapped nodes:", safeNodes.length);
+          console.log("✅ Mapped edges:", safeEdges.length);
+          console.log("✅ Safe nodes:", safeNodes);
+
+          updateConfig({
+            ...config,
+            name: workflow.name || config.name,
+            nodes: safeNodes,
+            edges: safeEdges,
+            reportId: reportId,
+            reportUrl: reportDownloadUrl,
+            reportFileName: reportFileName,
+          });
+
+          console.log("💾 Config updated with workflow");
+        } else {
+          console.warn("⚠️ No nodes found in workflow response");
+        }
+      } else {
+        console.warn("⚠️ No workflow in response");
       }
 
       const hasReport = reportDownloadUrl && reportFilePath;
@@ -678,7 +1016,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         "✅ **Workflow Created Successfully**\n\nYour workflow has been generated and is ready to execute.";
 
       if (hasReport) {
-        assistantMessage = `✅ **Report Generated Successfully**\n\n📊 **AP REGISTER Report** is ready for review.\n\nClick "View Report" below or switch to the Report tab to download.`;
+        assistantMessage = `✅ **Report Generated Successfully**\n\n📊 **Report** is ready for review.\n\nSwitch to the Report tab to view the interactive dashboard.`;
 
         setTimeout(() => {
           if (onSwitchToReport && reportDownloadUrl) {
@@ -748,25 +1086,31 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
               {msg.documentId && (
                 <div className="mt-4 pt-3 border-t border-gray-700/50 flex justify-end gap-2 flex-wrap">
-                  {msg.fileUrl && (
-                    <button
-                      onClick={() =>
-                        handleViewOriginalFile(
-                          msg.fileUrl!,
-                          msg.fileType || "application/pdf",
-                        )
-                      }
-                      className="flex items-center gap-2 px-3 py-2 bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 text-xs font-bold rounded-lg border border-purple-500/30 transition-all shadow-lg hover:shadow-purple-500/20"
-                    >
-                      <FileText className="w-3.5 h-3.5" /> Preview
-                    </button>
-                  )}
+                  <button
+                    onClick={() =>
+                      handleViewOriginalFile(
+                        msg.fileUrl || "",
+                        msg.fileType || "application/pdf",
+                        msg.documentId,
+                      )
+                    }
+                    className="flex items-center gap-2 px-3 py-2 bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 text-xs font-bold rounded-lg border border-purple-500/30 transition-all shadow-lg hover:shadow-purple-500/20"
+                  >
+                    <FileText className="w-3.5 h-3.5" /> Preview
+                  </button>
 
                   <button
                     onClick={() => handleViewParsedData(msg.documentId!)}
                     className="flex items-center gap-2 px-3 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 text-xs font-bold rounded-lg border border-blue-500/30 transition-all shadow-lg hover:shadow-blue-500/20"
                   >
                     <Eye className="w-3.5 h-3.5" /> Parsed Preview
+                  </button>
+
+                  <button
+                    onClick={() => handleDownloadExcel(msg.documentId!)}
+                    className="flex items-center gap-2 px-3 py-2 bg-green-600/20 hover:bg-green-600/30 text-green-400 text-xs font-bold rounded-lg border border-green-500/30 transition-all shadow-lg hover:shadow-green-500/20"
+                  >
+                    <Download className="w-3.5 h-3.5" /> Download Excel
                   </button>
                 </div>
               )}
@@ -837,7 +1181,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               <Paperclip className="w-4 h-4" />
               Upload Invoice
             </button>
-            
+
             <button
               onClick={handleSend}
               disabled={!input.trim() || loading || uploading}

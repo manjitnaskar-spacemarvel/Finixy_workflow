@@ -1,126 +1,310 @@
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '../store/AuthContext';
-import { authService } from '../services/api';
-import { Loader2, Lock, Sparkles } from 'lucide-react';
+import React, { useState, useEffect, useRef } from "react";
+import { useAuth } from "../store/AuthContext";
+import { authService } from "../services/api";
+import { Loader2, Lock, Sparkles, Zap, TrendingUp } from "lucide-react";
+import gsap from "gsap";
 
 export const Login: React.FC = () => {
-  const [email, setEmail] = useState('test@example.com');
-  const [password, setPassword] = useState('password123');
+  const [email, setEmail] = useState("test@example.com");
+  const [password, setPassword] = useState("password123");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const { login } = useAuth();
 
-  // --- SPLASH SCREEN STATE ---
-  // Stages: 'hidden' (start) -> 'entering' (fade in) -> 'exiting' (fade out) -> 'done' (show login)
-  const [splashStage, setSplashStage] = useState<'hidden' | 'entering' | 'exiting' | 'done'>('hidden');
+  const [showSplash, setShowSplash] = useState(true);
+  const [showLogin, setShowLogin] = useState(false);
+
+  const splashRef = useRef<HTMLDivElement>(null);
+  const logoRef = useRef<HTMLDivElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const subtitleRef = useRef<HTMLParagraphElement>(null);
+  const taglineRef = useRef<HTMLParagraphElement>(null);
+  const icon1Ref = useRef<HTMLDivElement>(null);
+  const icon2Ref = useRef<HTMLDivElement>(null);
+  const icon3Ref = useRef<HTMLDivElement>(null);
+  const loginFormRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // 1. Trigger the fade-in slightly after mount for a smooth start
-    const enterTimer = setTimeout(() => setSplashStage('entering'), 100);
-    
-    // 2. Hold the text on screen, then start the fade-out
-    const exitTimer = setTimeout(() => setSplashStage('exiting'), 3000);
-    
-    // 3. Unmount the splash screen entirely and reveal the login form
-    const doneTimer = setTimeout(() => setSplashStage('done'), 3700);
+    if (!showSplash) return;
+
+    const tl = gsap.timeline({
+      onComplete: () => {
+        setShowSplash(false);
+        setShowLogin(true);
+      },
+    });
+
+    // Logo animation
+    tl.fromTo(
+      logoRef.current,
+      { scale: 0, rotation: -180, opacity: 0 },
+      {
+        scale: 1,
+        rotation: 0,
+        opacity: 1,
+        duration: 1,
+        ease: "elastic.out(1, 0.6)",
+      },
+    );
+
+    // Logo pulse
+    tl.to(logoRef.current, {
+      scale: 1.15,
+      duration: 0.3,
+      yoyo: true,
+      repeat: 1,
+      ease: "power2.inOut",
+    });
+
+    // Floating icons appear
+    tl.fromTo(
+      [icon1Ref.current, icon2Ref.current, icon3Ref.current],
+      { scale: 0, opacity: 0, rotation: -90 },
+      {
+        scale: 1,
+        opacity: 0.6,
+        rotation: 0,
+        duration: 0.6,
+        stagger: 0.1,
+        ease: "back.out(1.7)",
+      },
+      "-=0.6",
+    );
+
+    // Title
+    tl.fromTo(
+      titleRef.current,
+      { y: 50, opacity: 0 },
+      {
+        y: 0,
+        opacity: 1,
+        duration: 0.8,
+        ease: "power3.out",
+      },
+      "-=0.4",
+    );
+
+    // Subtitle
+    tl.fromTo(
+      subtitleRef.current,
+      { y: 30, opacity: 0 },
+      {
+        y: 0,
+        opacity: 1,
+        duration: 0.6,
+        ease: "power2.out",
+      },
+      "-=0.4",
+    );
+
+    // Tagline
+    tl.fromTo(
+      taglineRef.current,
+      { opacity: 0, scale: 0.9, y: 20 },
+      {
+        opacity: 1,
+        scale: 1,
+        y: 0,
+        duration: 0.8,
+        ease: "back.out(1.7)",
+      },
+      "-=0.3",
+    );
+
+    // Hold for 1.5 seconds
+    tl.to({}, { duration: 1.5 });
+
+    // Fade out
+    tl.to(splashRef.current, {
+      opacity: 0,
+      scale: 0.95,
+      duration: 0.5,
+      ease: "power2.in",
+    });
 
     return () => {
-      clearTimeout(enterTimer);
-      clearTimeout(exitTimer);
-      clearTimeout(doneTimer);
+      tl.kill();
     };
-  }, []);
+  }, [showSplash]);
+
+  useEffect(() => {
+    if (showLogin && loginFormRef.current) {
+      gsap.fromTo(
+        loginFormRef.current,
+        { opacity: 0, y: 50, scale: 0.9 },
+        {
+          opacity: 1,
+          y: 0,
+          scale: 1,
+          duration: 0.8,
+          ease: "power3.out",
+        },
+      );
+    }
+  }, [showLogin]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
+    setError("");
     try {
       const response = await authService.login(email, password);
       if (response.access_token) {
         login(response.access_token);
       }
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Invalid email or password');
+      setError(err.response?.data?.detail || "Invalid email or password");
     } finally {
       setLoading(false);
     }
   };
 
-  // --- 1. RENDER SPLASH SCREEN ---
-  if (splashStage !== 'done') {
+  if (showSplash) {
     return (
-      <div className={`min-h-screen flex flex-col items-center justify-center bg-gray-900 px-4 transition-all duration-800 ease-in-out
-        ${splashStage === 'entering' ? 'opacity-100' : 'opacity-0'}
-      `}>
-        <div className={`text-center transition-all duration-700 delay-100 ease-out transform
-          ${splashStage === 'entering' ? 'translate-y-0 opacity-100 scale-100' : 'translate-y-8 opacity-0 scale-95'}
-        `}>
-          <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-[0_0_30px_rgba(37,99,235,0.5)]">
-            <Sparkles className="w-8 h-8 text-white" />
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-blue-900 to-black overflow-hidden relative">
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-600/10 via-purple-600/10 to-pink-600/10 animate-pulse"></div>
+
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute top-1/4 left-1/4 w-2 h-2 bg-blue-400 rounded-full opacity-60 animate-ping"></div>
+          <div
+            className="absolute top-1/3 right-1/4 w-2 h-2 bg-purple-400 rounded-full opacity-60 animate-ping"
+            style={{ animationDelay: "1s" }}
+          ></div>
+          <div
+            className="absolute bottom-1/4 left-1/3 w-2 h-2 bg-pink-400 rounded-full opacity-60 animate-ping"
+            style={{ animationDelay: "2s" }}
+          ></div>
+        </div>
+
+        <div ref={splashRef} className="text-center z-10 px-4">
+          <div className="relative mb-8">
+            <div
+              ref={icon1Ref}
+              className="absolute -left-24 -top-8 w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg opacity-0"
+            >
+              <Zap className="w-6 h-6 text-white" />
+            </div>
+
+            <div
+              ref={icon2Ref}
+              className="absolute -right-24 -top-8 w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg opacity-0"
+            >
+              <TrendingUp className="w-6 h-6 text-white" />
+            </div>
+
+            <div
+              ref={icon3Ref}
+              className="absolute -bottom-4 left-1/2 transform -translate-x-1/2 w-12 h-12 bg-gradient-to-br from-pink-500 to-pink-600 rounded-xl flex items-center justify-center shadow-lg opacity-0"
+            >
+              <Sparkles className="w-6 h-6 text-white" />
+            </div>
+
+            <div
+              ref={logoRef}
+              className="w-24 h-24 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-3xl flex items-center justify-center mx-auto shadow-2xl shadow-blue-500/50"
+            >
+              <Sparkles className="w-12 h-12 text-white" />
+            </div>
           </div>
-          <h1 className="text-6xl md:text-7xl font-extrabold text-white tracking-tight mb-4">
+
+          <h1
+            ref={titleRef}
+            className="text-6xl md:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 mb-6 tracking-tight"
+          >
             Welcome to Finixy
           </h1>
-          <p className="text-blue-200 text-lg md:text-xl font-medium max-w-md mx-auto leading-relaxed">
-            Your finance automation buddy. <br/>
-            <span className="opacity-80">Making your financial workflows effortless.</span>
+
+          <p
+            ref={subtitleRef}
+            className="text-blue-200 text-xl md:text-2xl font-semibold mb-4"
+          >
+            Your finance automation buddy
+          </p>
+
+          <p
+            ref={taglineRef}
+            className="text-gray-300 text-lg md:text-xl font-medium max-w-2xl mx-auto leading-relaxed px-4"
+          >
+            We make your financial work{" "}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-400 font-bold">
+              fun and easy
+            </span>{" "}
+            with Finixy
           </p>
         </div>
       </div>
     );
   }
 
-  // --- 2. RENDER LOGIN FORM ---
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-black px-4 transition-opacity duration-1000 animate-in fade-in">
-      {/* Note: The wrapper div here will smoothly fade in once the splash screen is unmounted 
-      */}
-      <div className="max-w-md w-full bg-black p-8 rounded-xl shadow-lg border border-white transform transition-all duration-700 ease-out translate-y-0 opacity-100">
-        <div className="flex flex-col items-center mb-8">
-          <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center mb-4 shadow-sm">
-            <Lock className="w-6 h-6 text-white" />
+  if (showLogin) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-blue-900 to-black px-4">
+        <div
+          ref={loginFormRef}
+          className="max-w-md w-full bg-gray-900/80 backdrop-blur-xl p-8 rounded-2xl shadow-2xl border border-gray-800"
+        >
+          <div className="flex flex-col items-center mb-8">
+            <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-blue-500/50">
+              <Lock className="w-8 h-8 text-white" />
+            </div>
+            <h2 className="text-3xl font-bold text-white">Welcome Back</h2>
+            <p className="text-sm text-gray-400 mt-2">
+              Login to continue to Finixy
+            </p>
           </div>
-          <h2 className="text-2xl font-bold text-white">Welcome to Finixy</h2>
-          <p className="text-sm text-gray-500 mt-1">Sign in to your account</p>
+
+          {error && (
+            <div className="mb-4 p-3 bg-red-500/10 text-red-400 text-sm rounded-lg border border-red-500/30">
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleLogin} className="space-y-5">
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Email
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-white placeholder-gray-500"
+                placeholder="Enter your email"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Password
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-white placeholder-gray-500"
+                placeholder="Enter your password"
+                required
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-xl font-semibold transition-all shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 flex justify-center items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Signing in...</span>
+                </>
+              ) : (
+                "LogIn"
+              )}
+            </button>
+          </form>
         </div>
-
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-200">
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-shadow"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-shadow"
-              required
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-all shadow-sm hover:shadow-md flex justify-center items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
-          >
-            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign In'}
-          </button>
-        </form>
       </div>
-    </div>
-  );
+    );
+  }
+
+  return null;
 };

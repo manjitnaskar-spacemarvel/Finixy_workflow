@@ -90,3 +90,20 @@ export const documentService = {
     return api.get(`/documents/${id}`);
   }
 };
+
+// src/services/api.ts - Add this new service method
+
+export const reportService = {
+  generateAPRegisterDirect: async () => {
+    const token = localStorage.getItem('auth_token');
+    return axios.post(
+      'http://localhost:8000/api/v1/reports/ap-register/direct',
+      {},
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      }
+    );
+  }
+};

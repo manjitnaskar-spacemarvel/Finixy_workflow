@@ -225,6 +225,8 @@ export interface WorkflowConfig {
   nodes: WorkflowNode[];
   edges: Edge[];
   lastModified: string;
+  reportUrl?: string | null;
+  reportFileName?: string;
 }
 
 export interface ChatMessage {

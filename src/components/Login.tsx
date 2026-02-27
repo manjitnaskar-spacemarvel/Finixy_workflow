@@ -201,7 +201,7 @@ export const Login: React.FC = () => {
 
             <div
               ref={logoRef}
-              className="w-24 h-24 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-3xl flex items-center justify-center mx-auto shadow-2xl shadow-blue-500/50"
+              className="w-24 h-24 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-3xl flex items-center justify-center mx-auto shadow-2xl shadow-blue-500/50 opacity-0"
             >
               <Sparkles className="w-12 h-12 text-white" />
             </div>
@@ -209,21 +209,21 @@ export const Login: React.FC = () => {
 
           <h1
             ref={titleRef}
-            className="text-6xl md:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 mb-6 tracking-tight"
+            className="text-6xl md:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 mb-6 tracking-tight opacity-0"
           >
             Welcome to Finixy
           </h1>
 
           <p
             ref={subtitleRef}
-            className="text-blue-200 text-xl md:text-2xl font-semibold mb-4"
+            className="text-blue-200 text-xl md:text-2xl font-semibold mb-4 opacity-0"
           >
             Your finance automation buddy
           </p>
 
           <p
             ref={taglineRef}
-            className="text-gray-300 text-lg md:text-xl font-medium max-w-2xl mx-auto leading-relaxed px-4"
+            className="text-gray-300 text-lg md:text-xl font-medium max-w-2xl mx-auto leading-relaxed px-4 opacity-0"
           >
             We make your financial work{" "}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-400 font-bold">
